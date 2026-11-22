@@ -25,3 +25,16 @@ def rolling_zscore(values: list[float], window: int = 36, limit: float = 3.0) ->
             result.append(1 if s > 0 and abs(v - m) / s > limit else 0)
         history.append(v)
     return result
+
+
+def sustained_threshold(values: list[float], threshold: float, n: int) -> list[int]:
+    """Flag a reading once the value has stayed above the threshold for `n` consecutive readings.
+
+    A short spike such as a defrost cycle never reaches `n`; a drift that lasts does.
+    """
+    result: list[int] = []
+    streak = 0
+    for v in values:
+        streak = streak + 1 if v > threshold else 0
+        result.append(1 if streak >= n else 0)
+    return result

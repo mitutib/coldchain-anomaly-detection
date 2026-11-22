@@ -6,13 +6,14 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from coldchain.detectors import fixed_threshold, rolling_zscore
+from coldchain.detectors import fixed_threshold, rolling_zscore, sustained_threshold
 from coldchain.generate import SENSORS
 from coldchain.metrics import f1, precision, recall
 
 DETECTORS = {
     "fixed threshold (+3C)": lambda sensor, v: fixed_threshold(v, SENSORS[sensor][1] + 3.0),
     "rolling z-score": lambda sensor, v: rolling_zscore(v),
+    "sustained threshold (5x)": lambda sensor, v: sustained_threshold(v, SENSORS[sensor][1] + 3.0, n=5),
 }
 
 

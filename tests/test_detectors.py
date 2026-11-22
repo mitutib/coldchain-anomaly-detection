@@ -1,4 +1,4 @@
-from coldchain.detectors import fixed_threshold, rolling_zscore
+from coldchain.detectors import fixed_threshold, rolling_zscore, sustained_threshold
 from coldchain.generate import generate
 
 
@@ -18,3 +18,19 @@ def test_zscore_is_silent_without_history():
 def test_generation_is_reproducible():
     assert generate(days=1, seed=1) == generate(days=1, seed=1)
     assert sum(r.fault for r in generate(days=7)) > 0
+
+
+def test_sustained_threshold_ignores_a_short_spike():
+    # defrost: three readings above the threshold, then back to normal
+    values = [4.0, 4.0, 9.0, 9.0, 9.0, 4.0, 4.0]
+    assert sustained_threshold(values, threshold=7.0, n=4) == [0, 0, 0, 0, 0, 0, 0]
+
+
+def test_sustained_threshold_fires_after_n_consecutive_readings():
+    values = [4.0, 9.0, 9.0, 9.0, 9.0, 9.0, 4.0]
+    assert sustained_threshold(values, threshold=7.0, n=4) == [0, 0, 0, 0, 1, 1, 0]
+
+
+def test_sustained_threshold_restarts_the_count_after_a_gap():
+    values = [9.0, 9.0, 4.0, 9.0, 9.0, 9.0]
+    assert sustained_threshold(values, threshold=7.0, n=3) == [0, 0, 0, 0, 0, 1]

@@ -22,8 +22,11 @@ Per-reading metrics on 7 days of data (8,064 readings, 2.3% faulty).
 |---|---|---|---|
 | Fixed threshold (+3 °C over the setpoint) | 0.22 | 0.66 | 0.33 |
 | Rolling z-score | 0.05 | 0.12 | 0.07 |
+| Sustained threshold (5 consecutive readings) | 1.00 | 0.48 | 0.65 |
 
 The fixed threshold fires on every defrost cycle. The z-score reacts to sudden jumps, so it catches defrosts and misses slow drifts.
+
+Requiring five consecutive readings above the threshold removes every defrost false alarm (a defrost lasts four readings). Recall drops because the first part of each drift is still below the threshold.
 
 ## Roadmap
 
