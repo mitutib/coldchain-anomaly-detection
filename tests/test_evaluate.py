@@ -16,7 +16,7 @@ def test_split_keeps_time_order_and_does_not_overlap():
 
 def test_split_uses_one_cutoff_for_every_sensor():
     data = {"meat": rows(10), "dairy": rows(10)}
-    tune, test = split_by_time(data, tune_fraction=0.5)
+    _, test = split_by_time(data, tune_fraction=0.5)
     assert test["meat"][0].timestamp == test["dairy"][0].timestamp
 
 

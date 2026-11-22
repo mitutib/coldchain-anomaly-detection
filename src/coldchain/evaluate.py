@@ -11,10 +11,10 @@ import argparse
 import csv
 import sys
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
@@ -136,12 +136,16 @@ def main() -> None:
 
     tune, test = split_by_time(load(args.path), args.tune_fraction)
     days = len(next(iter(test.values()))) * STEP_MINUTES / 1440
-    print(f"tuned on {sum(map(len, tune.values()))} readings, tested on {sum(map(len, test.values()))} ({days:.1f} days)\n")
-    print(f"{'detector':<21}{'parameters':<24}{'precision':>9}{'recall':>8}{'F1':>6}{'caught':>8}{'delay':>9}{'false alarms':>14}")
+    n_tune, n_test = (sum(map(len, part.values())) for part in (tune, test))
+    print(f"tuned on {n_tune} readings, tested on {n_test} ({days:.1f} days)\n")
+    print(
+        f"{'detector':<21}{'parameters':<24}{'precision':>9}{'recall':>8}{'F1':>6}"
+        f"{'caught':>8}{'delay':>9}{'false alarms':>14}"
+    )
 
     tuned: list[tuple[str, Detector, dict]] = []
     for name, (build, grid) in DETECTORS.items():
-        params = best_params(grid, lambda c: run(build(**c), tune).f1)
+        params = best_params(grid, lambda c, build=build: run(build(**c), tune).f1)
         tuned.append((name, build(**params), params))
     tuned.append(("gradient boosting", *fit_model(tune)))
 

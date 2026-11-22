@@ -6,7 +6,7 @@ def confusion_matrix(actual: list[int], predicted: list[int]) -> dict[str, int]:
     if len(actual) != len(predicted):
         raise ValueError("inputs have different lengths")
     m = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
-    for a, p in zip(actual, predicted):
+    for a, p in zip(actual, predicted, strict=True):
         if a and p:
             m["tp"] += 1
         elif p:
