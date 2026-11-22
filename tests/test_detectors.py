@@ -1,4 +1,5 @@
 from coldchain.detectors import fixed_threshold, rolling_zscore, sustained_threshold
+from coldchain.events import find_events
 from coldchain.generate import generate
 
 
@@ -34,3 +35,12 @@ def test_sustained_threshold_fires_after_n_consecutive_readings():
 def test_sustained_threshold_restarts_the_count_after_a_gap():
     values = [9.0, 9.0, 4.0, 9.0, 9.0, 9.0]
     assert sustained_threshold(values, threshold=7.0, n=3) == [0, 0, 0, 0, 0, 1]
+
+
+def test_longer_datasets_get_more_faults():
+    def fault_count(days):
+        readings = [r.fault for r in generate(days=days) if r.sensor == "meat"]
+        return len(find_events(readings))
+
+    assert fault_count(7) == 2
+    assert fault_count(28) >= 6      # eight are planted; a few may overlap

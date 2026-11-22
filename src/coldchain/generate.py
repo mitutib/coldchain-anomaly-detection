@@ -39,9 +39,9 @@ def generate(days: int = 7, seed: int = 42) -> list[Reading]:
     readings: list[Reading] = []
 
     for sensor, (store, base, noise) in SENSORS.items():
-        # two faults per sensor: temperature drifts up over 1-3 hours
+        # about two faults per sensor per week: temperature drifts up over 1-3 hours
         faults = []
-        for _ in range(2):
+        for _ in range(max(2, days * 2 // 7)):
             begin = rnd.randrange(steps // 10, steps - 50)
             faults.append((begin, begin + rnd.randrange(12, 36)))
 
