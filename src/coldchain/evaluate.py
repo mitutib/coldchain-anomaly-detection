@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from coldchain.detectors import fixed_threshold, rolling_zscore, sustained_threshold
+from coldchain.detectors import defrost_aware, fixed_threshold, rolling_zscore, sustained_threshold
 from coldchain.events import EventStats, event_stats
 from coldchain.generate import SENSORS, STEP_MINUTES
 from coldchain.metrics import f1, precision, recall
@@ -46,6 +46,10 @@ DETECTORS: dict[str, tuple[Callable[..., Detector], list[dict]]] = {
     "sustained threshold": (
         lambda offset, n: lambda sensor, v: sustained_threshold(v, SENSORS[sensor][1] + offset, n),
         [{"offset": o, "n": n} for o in OFFSETS for n in range(2, 9)],
+    ),
+    "defrost aware": (
+        lambda offset, n: lambda sensor, v: defrost_aware(v, SENSORS[sensor][1] + offset, n),
+        [{"offset": o, "n": n} for o in OFFSETS for n in range(1, 5)],
     ),
 }
 

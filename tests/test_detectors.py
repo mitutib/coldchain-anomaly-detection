@@ -1,4 +1,4 @@
-from coldchain.detectors import fixed_threshold, rolling_zscore, sustained_threshold
+from coldchain.detectors import defrost_aware, fixed_threshold, rolling_zscore, sustained_threshold
 from coldchain.events import find_events
 from coldchain.generate import generate
 
@@ -44,3 +44,23 @@ def test_longer_datasets_get_more_faults():
 
     assert fault_count(7) == 2
     assert fault_count(28) >= 6      # eight are planted; a few may overlap
+
+
+def test_defrost_aware_ignores_a_sudden_short_spike():
+    values = [4.0, 4.0, 8.0, 8.0, 8.0, 8.0, 4.0, 4.0]
+    assert defrost_aware(values, threshold=5.5, n=2) == [0] * 8
+
+
+def test_defrost_aware_catches_a_slow_drift_early():
+    values = [4.0, 4.5, 5.0, 5.6, 6.2, 6.8]
+    assert defrost_aware(values, threshold=5.5, n=2) == [0, 0, 0, 0, 1, 1]
+
+
+def test_defrost_aware_alarms_when_a_sudden_jump_does_not_come_back():
+    values = [4.0, 4.0] + [9.0] * 8
+    assert defrost_aware(values, threshold=5.5, n=2, hold=4) == [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
+
+
+def test_defrost_aware_keeps_alarming_when_a_defrost_starts_during_a_fault():
+    values = [4.0, 6.0, 6.0, 6.0, 10.0, 10.0, 6.0]
+    assert defrost_aware(values, threshold=5.0, n=2) == [0, 0, 1, 1, 1, 1, 1]

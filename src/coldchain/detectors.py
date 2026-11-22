@@ -38,3 +38,25 @@ def sustained_threshold(values: list[float], threshold: float, n: int) -> list[i
         streak = streak + 1 if v > threshold else 0
         result.append(1 if streak >= n else 0)
     return result
+
+
+def defrost_aware(
+    values: list[float], threshold: float, n: int, jump: float = 2.5, hold: int = 6
+) -> list[int]:
+    """Sustained threshold that recognises a defrost cycle by its shape instead of waiting it out.
+
+    A defrost starts with a sudden jump between two consecutive readings; a fault drifts up slowly.
+    After a jump of at least `jump` degrees, alarms are held back for `hold` readings. If the
+    temperature is still high after that, it was not a defrost and the alarm fires.
+    A jump that happens while an alarm is already active does not silence it.
+    """
+    result: list[int] = []
+    streak = 0
+    hold_until = 0
+    for i, v in enumerate(values):
+        alarming = bool(result and result[-1])
+        if i > 0 and v - values[i - 1] >= jump and not alarming:
+            hold_until = i + hold
+        streak = streak + 1 if v > threshold else 0
+        result.append(1 if streak >= n and i >= hold_until else 0)
+    return result
