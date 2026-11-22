@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from coldchain.evaluate import Row, best_params, split_by_time
+from coldchain.evaluate import Row, best_params, split_by_time, training_set
 
 
 def rows(n):
@@ -28,3 +28,9 @@ def test_best_params_picks_the_highest_score():
 def test_best_params_keeps_the_first_candidate_on_a_tie():
     grid = [{"n": 1}, {"n": 2}]
     assert best_params(grid, score=lambda p: 1.0) == {"n": 1}
+
+
+def test_training_set_stacks_every_sensor():
+    data = {"meat": rows(10), "dairy": rows(10)}
+    X, y = training_set(data)
+    assert X.shape[0] == 20 and y.shape == (20,)

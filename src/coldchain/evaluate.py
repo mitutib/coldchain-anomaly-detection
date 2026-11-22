@@ -16,10 +16,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+import numpy as np
+
 from coldchain.detectors import defrost_aware, fixed_threshold, rolling_zscore, sustained_threshold
 from coldchain.events import EventStats, event_stats
 from coldchain.generate import SENSORS, STEP_MINUTES
 from coldchain.metrics import f1, precision, recall
+from coldchain.model import build_features, to_alarms, train
 
 
 @dataclass
@@ -99,6 +102,30 @@ def run(detector: Detector, data: Data) -> Result:
     return Result(precision(actual, predicted), recall(actual, predicted), f1(actual, predicted), events)
 
 
+def training_set(data: Data) -> tuple[np.ndarray, np.ndarray]:
+    """Features and labels of every sensor, stacked."""
+    X = np.vstack([build_features([r.temperature for r in rows], SENSORS[s][1]) for s, rows in data.items()])
+    y = np.array([r.fault for rows in data.values() for r in rows])
+    return X, y
+
+
+def model_detector(model, threshold: float, n: int) -> Detector:
+    def detect(sensor: str, values: list[float]) -> list[int]:
+        scores = model.predict_proba(build_features(values, SENSORS[sensor][1]))[:, 1]
+        return to_alarms(scores, threshold, n)
+
+    return detect
+
+
+def fit_model(tune: Data) -> tuple[Detector, dict]:
+    """Fit on the earlier part of the tuning data, choose the alarm rule on the later part, then refit on all of it."""
+    fit, validate = split_by_time(tune, 5 / 7)
+    model = train(*training_set(fit))
+    grid = [{"threshold": t, "n": n} for t in (0.3, 0.5, 0.7, 0.9) for n in (1, 2, 3)]
+    params = best_params(grid, lambda c: run(model_detector(model, **c), validate).f1)
+    return model_detector(train(*training_set(tune)), **params), params
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("path", nargs="?", type=Path, default=Path("data/readings.csv"))
@@ -112,9 +139,14 @@ def main() -> None:
     print(f"tuned on {sum(map(len, tune.values()))} readings, tested on {sum(map(len, test.values()))} ({days:.1f} days)\n")
     print(f"{'detector':<21}{'parameters':<24}{'precision':>9}{'recall':>8}{'F1':>6}{'caught':>8}{'delay':>9}{'false alarms':>14}")
 
+    tuned: list[tuple[str, Detector, dict]] = []
     for name, (build, grid) in DETECTORS.items():
         params = best_params(grid, lambda c: run(build(**c), tune).f1)
-        r = run(build(**params), test)
+        tuned.append((name, build(**params), params))
+    tuned.append(("gradient boosting", *fit_model(tune)))
+
+    for name, detector, params in tuned:
+        r = run(detector, test)
         delay = r.events.median_delay_minutes
         print(
             f"{name:<21}{', '.join(f'{k}={v}' for k, v in params.items()):<24}"
