@@ -40,23 +40,34 @@ def sustained_threshold(values: list[float], threshold: float, n: int) -> list[i
     return result
 
 
+class DefrostAwareDetector:
+    """Defrost-aware detection, one reading at a time.
+
+    A defrost starts with a sudden jump; a fault drifts up slowly. After a jump of at least
+    `jump` degrees, alarms are held back for `hold` readings. A jump during an active alarm
+    does not silence it.
+    """
+
+    def __init__(self, threshold: float, n: int, jump: float = 2.5, hold: int = 6):
+        self.threshold, self.n, self.jump, self.hold = threshold, n, jump, hold
+        self.previous: float | None = None
+        self.streak = 0
+        self.held = 0
+        self.alarming = False
+
+    def update(self, value: float) -> bool:
+        if self.held:
+            self.held -= 1
+        if self.previous is not None and value - self.previous >= self.jump and not self.alarming:
+            self.held = self.hold
+        self.streak = self.streak + 1 if value > self.threshold else 0
+        self.alarming = self.streak >= self.n and not self.held
+        self.previous = value
+        return self.alarming
+
+
 def defrost_aware(
     values: list[float], threshold: float, n: int, jump: float = 2.5, hold: int = 6
 ) -> list[int]:
-    """Sustained threshold that recognises a defrost cycle by its shape instead of waiting it out.
-
-    A defrost starts with a sudden jump between two consecutive readings; a fault drifts up slowly.
-    After a jump of at least `jump` degrees, alarms are held back for `hold` readings. If the
-    temperature is still high after that, it was not a defrost and the alarm fires.
-    A jump that happens while an alarm is already active does not silence it.
-    """
-    result: list[int] = []
-    streak = 0
-    hold_until = 0
-    for i, v in enumerate(values):
-        alarming = bool(result and result[-1])
-        if i > 0 and v - values[i - 1] >= jump and not alarming:
-            hold_until = i + hold
-        streak = streak + 1 if v > threshold else 0
-        result.append(1 if streak >= n and i >= hold_until else 0)
-    return result
+    detector = DefrostAwareDetector(threshold, n, jump, hold)
+    return [int(detector.update(v)) for v in values]

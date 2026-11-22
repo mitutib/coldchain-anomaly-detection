@@ -1,4 +1,10 @@
-from coldchain.detectors import defrost_aware, fixed_threshold, rolling_zscore, sustained_threshold
+from coldchain.detectors import (
+    DefrostAwareDetector,
+    defrost_aware,
+    fixed_threshold,
+    rolling_zscore,
+    sustained_threshold,
+)
 from coldchain.events import find_events
 from coldchain.generate import generate
 
@@ -64,3 +70,9 @@ def test_defrost_aware_alarms_when_a_sudden_jump_does_not_come_back():
 def test_defrost_aware_keeps_alarming_when_a_defrost_starts_during_a_fault():
     values = [4.0, 6.0, 6.0, 6.0, 10.0, 10.0, 6.0]
     assert defrost_aware(values, threshold=5.0, n=2) == [0, 0, 1, 1, 1, 1, 1]
+
+
+def test_streaming_detector_keeps_state_between_readings():
+    detector = DefrostAwareDetector(threshold=5.5, n=2, hold=4)
+    readings = [4.0, 4.0, 9.0, 9.0, 9.0, 9.0, 9.0, 4.0]
+    assert [detector.update(v) for v in readings] == [False] * 6 + [True, False]
