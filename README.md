@@ -49,12 +49,35 @@ Known limits:
 - The test period holds 13 faults, so small differences between detectors are noise.
 - The data is synthetic, so real sensors will be noisier than this.
 
+## Service
+
+The defrost-aware detector runs as a small HTTP service. It keeps one detector per sensor and answers each reading with a verdict.
+
+```bash
+docker build -t coldchain .
+docker run -p 8000:8000 coldchain
+
+curl -X POST localhost:8000/readings -H 'content-type: application/json' \
+  -d '{"sensor": "dairy", "setpoint": 4.0, "temperature": 5.8}'
+# {"sensor":"dairy","alarm":false}
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /readings` | score one reading |
+| `GET /health` | liveness check |
+| `GET /metrics` | Prometheus counters: readings received, alarms raised |
+
+The threshold and the number of consecutive readings come from `COLDCHAIN_OFFSET` and `COLDCHAIN_N` (defaults 1.0 and 2, the tuned values above).
+
+Detector state lives in memory, so it is lost on restart and not shared between replicas. That is fine for one instance and has to change before scaling out.
+
 ## Roadmap
 
 - [x] baseline detectors, evaluated on a time-based split
 - [x] detect faults sooner: defrost-aware detector
 - [x] learned model on window features, compared against the rules
-- [ ] HTTP service, container image, CI
+- [x] HTTP service, container image, CI
 - [ ] Kubernetes deployment
 - [ ] experiment tracking and model registry
 - [ ] monitoring and drift detection
