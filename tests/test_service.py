@@ -1,7 +1,9 @@
+import fakeredis
 import pytest
 from fastapi.testclient import TestClient
 
 from coldchain.service import create_app
+from coldchain.store import RedisStore
 
 
 @pytest.fixture
@@ -51,3 +53,24 @@ def test_metrics_count_readings_and_alarms(client):
     text = client.get("/metrics").text
     assert "coldchain_readings_total 3.0" in text
     assert "coldchain_alarms_total 1.0" in text
+
+
+def test_replicas_sharing_a_store_agree():
+    server = fakeredis.FakeServer()
+    replicas = [
+        TestClient(create_app(store=RedisStore(fakeredis.FakeRedis(server=server)))) for _ in range(2)
+    ]
+    alarms = [send(replicas[i % 2], t).json()["alarm"] for i, t in enumerate((4.0, 4.6, 5.2, 5.8))]
+    assert alarms == [False, False, False, True]
+
+
+def test_ready_reports_the_store(client):
+    assert client.get("/ready").status_code == 200
+
+
+def test_not_ready_when_the_store_is_down():
+    class Down:
+        def ping(self):
+            return False
+
+    assert TestClient(create_app(store=Down())).get("/ready").status_code == 503

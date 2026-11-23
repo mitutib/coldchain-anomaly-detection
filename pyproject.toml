@@ -7,8 +7,8 @@ dependencies = []
 
 [project.optional-dependencies]
 model = ["numpy", "scikit-learn"]
-service = ["fastapi", "uvicorn", "prometheus-client"]
-dev = ["coldchain[model,service]", "pytest", "httpx", "ruff"]
+service = ["fastapi", "uvicorn", "prometheus-client", "redis"]
+dev = ["coldchain[model,service]", "pytest", "httpx", "fakeredis", "ruff"]
 
 [tool.ruff]
 line-length = 120

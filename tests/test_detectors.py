@@ -76,3 +76,15 @@ def test_streaming_detector_keeps_state_between_readings():
     detector = DefrostAwareDetector(threshold=5.5, n=2, hold=4)
     readings = [4.0, 4.0, 9.0, 9.0, 9.0, 9.0, 9.0, 4.0]
     assert [detector.update(v) for v in readings] == [False] * 6 + [True, False]
+
+
+def test_detector_can_be_restored_from_its_state():
+    readings = [4.0, 4.0, 9.0, 9.0, 9.0, 9.0, 9.0, 4.0]
+    detector = DefrostAwareDetector(threshold=5.5, n=2, hold=4)
+    alarms = []
+    for v in readings:
+        alarms.append(detector.update(v))
+        state = detector.state()
+        detector = DefrostAwareDetector(threshold=5.5, n=2, hold=4)
+        detector.restore(state)
+    assert alarms == [False] * 6 + [True, False]

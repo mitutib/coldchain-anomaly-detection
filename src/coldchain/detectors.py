@@ -65,6 +65,13 @@ class DefrostAwareDetector:
         self.previous = value
         return self.alarming
 
+    def state(self) -> dict:
+        return {"previous": self.previous, "streak": self.streak, "held": self.held, "alarming": self.alarming}
+
+    def restore(self, state: dict) -> None:
+        self.previous, self.streak = state["previous"], state["streak"]
+        self.held, self.alarming = state["held"], state["alarming"]
+
 
 def defrost_aware(
     values: list[float], threshold: float, n: int, jump: float = 2.5, hold: int = 6
