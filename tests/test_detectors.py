@@ -88,3 +88,14 @@ def test_detector_can_be_restored_from_its_state():
         detector = DefrostAwareDetector(threshold=5.5, n=2, hold=4)
         detector.restore(state)
     assert alarms == [False] * 6 + [True, False]
+
+
+def test_noise_scale_makes_readings_noisier():
+    def spread(noise_scale):
+        readings = generate(days=2, noise_scale=noise_scale)
+        values = [r.temperature for r in readings if r.sensor == "dairy" and not r.fault]
+        mean = sum(values) / len(values)
+        return sum((v - mean) ** 2 for v in values) / len(values)
+
+    assert spread(2.0) > spread(1.0)
+    assert generate(days=1) == generate(days=1, noise_scale=1.0)

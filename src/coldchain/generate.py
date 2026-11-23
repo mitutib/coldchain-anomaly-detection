@@ -32,7 +32,7 @@ class Reading:
     fault: int  # 1 = real fault, 0 = normal (defrost cycles included)
 
 
-def generate(days: int = 7, seed: int = 42) -> list[Reading]:
+def generate(days: int = 7, seed: int = 42, noise_scale: float = 1.0) -> list[Reading]:
     rnd = random.Random(seed)
     start = datetime(2026, 1, 5)
     steps = days * 24 * 60 // STEP_MINUTES
@@ -48,7 +48,7 @@ def generate(days: int = 7, seed: int = 42) -> list[Reading]:
         for i in range(steps):
             timestamp = start + timedelta(minutes=i * STEP_MINUTES)
             # compressor cycle: a small wave with a ~40 minute period
-            t = base + 0.4 * math.sin(2 * math.pi * i / 8) + rnd.gauss(0, noise)
+            t = base + 0.4 * math.sin(2 * math.pi * i / 8) + rnd.gauss(0, noise * noise_scale)
             # scheduled defrost every 6 hours for 20 minutes: an expected spike, not a fault
             if (i * STEP_MINUTES) % 360 < 20:
                 t += 4.0
@@ -76,9 +76,10 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--days", type=int, default=7)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--noise-scale", type=float, default=1.0, help="multiply sensor noise, to simulate drift")
     p.add_argument("--out", type=Path, default=Path("data/readings.csv"))
     a = p.parse_args()
-    readings = generate(a.days, a.seed)
+    readings = generate(a.days, a.seed, a.noise_scale)
     write_csv(readings, a.out)
     print(f"{len(readings)} readings, {sum(r.fault for r in readings)} faulty -> {a.out}")
 
