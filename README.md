@@ -175,6 +175,20 @@ kubectl -n kube-system patch deploy metrics-server --type=json \
 
 The bundled Redis runs without persistence, so after it restarts the detectors start cold, which costs a couple of readings per sensor. To use a Redis you already run, set `redis.enabled=false` and `redis.externalUrl`.
 
+## Terraform
+
+`deploy/terraform/local` describes the service and its Redis as Docker containers, so the whole thing comes up and goes away with one command each. It is the same workflow the cloud version will use, without needing an account.
+
+```bash
+cd deploy/terraform/local
+terraform init
+terraform apply                              # network, Redis, service on http://localhost:18088
+terraform apply -var consecutive_readings=3  # the plan shows the service being replaced
+terraform destroy
+```
+
+It expects the image to exist locally (`docker build -t coldchain:0.4.0 .`). The Redis image is marked `keep_locally`, because other containers on the machine may use it and `destroy` should not take it away from them.
+
 ## Roadmap
 
 - [x] baseline detectors, evaluated on a time-based split
@@ -186,4 +200,5 @@ The bundled Redis runs without persistence, so after it restarts the detectors s
 - [x] Helm chart
 - [x] experiment tracking and model registry
 - [x] monitoring: metrics, drift measure, alert rules with tests, dashboard
+- [x] Terraform for a local run
 - [ ] the same platform on a cloud provider, from Terraform
