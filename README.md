@@ -95,6 +95,16 @@ It runs two replicas with the state in Redis. Sending one sensor's readings to t
 
 Liveness and readiness are separate on purpose. When Redis goes away the pods stop being ready and leave the Service, but they are not restarted, because restarting them would not bring Redis back.
 
+An autoscaler keeps between two and five replicas, aiming at 60% of the requested CPU. It needs metrics-server, which kind does not ship:
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl -n kube-system patch deploy metrics-server --type=json \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+```
+
+Under a constant stream of requests it went from two replicas to five in under a minute, and back to two about two minutes after the load stopped. The deployment no longer sets `replicas`, so applying it again does not fight the autoscaler.
+
 Redis runs without persistence. After it restarts the detectors start cold, which costs a couple of readings per sensor. While it is down, readings are rejected rather than scored without history.
 
 ## Roadmap
@@ -104,6 +114,7 @@ Redis runs without persistence. After it restarts the detectors start cold, whic
 - [x] learned model on window features, compared against the rules
 - [x] HTTP service, container image, CI
 - [x] Kubernetes deployment, two replicas with shared state in Redis
-- [ ] autoscaling and a Helm chart
+- [x] autoscaling
+- [ ] Helm chart
 - [ ] experiment tracking and model registry
 - [ ] monitoring and drift detection
