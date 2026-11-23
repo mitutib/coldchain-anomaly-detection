@@ -70,7 +70,11 @@ curl -X POST localhost:8000/readings -H 'content-type: application/json' \
 
 The threshold and the number of consecutive readings come from `COLDCHAIN_OFFSET` and `COLDCHAIN_N` (defaults 1.0 and 2, the tuned values above).
 
-Detector state lives in memory, so it is lost on restart and not shared between replicas. That is fine for one instance and has to change before scaling out.
+Detector state is kept in memory by default. With `COLDCHAIN_REDIS_URL` set it goes to Redis instead, so several replicas can serve the same sensor: each reading is a read-modify-write under an optimistic lock, retried if another replica got there first.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /ready` | readiness check: fails while Redis is unreachable |
 
 ## Kubernetes
 
@@ -78,8 +82,8 @@ Manifests are in `deploy/k8s`. To run them on a local [kind](https://kind.sigs.k
 
 ```bash
 kind create cluster --name coldchain
-docker build -t coldchain:0.1.0 .
-kind load docker-image coldchain:0.1.0 --name coldchain
+docker build -t coldchain:0.2.0 .
+kind load docker-image coldchain:0.2.0 --name coldchain
 kubectl apply -f deploy/k8s/
 kubectl -n coldchain rollout status deploy/coldchain
 kubectl -n coldchain port-forward svc/coldchain 8000:80
@@ -87,7 +91,11 @@ kubectl -n coldchain port-forward svc/coldchain 8000:80
 
 The deployment rolls out with `maxUnavailable: 0`, so a bad release never takes the running pod down. Pointing it at an image that does not exist leaves the new pod in `ErrImagePull` while the old one keeps answering; `kubectl rollout undo` cleans up.
 
-It runs a single replica on purpose: the detector state is in memory.
+It runs two replicas with the state in Redis. Sending one sensor's readings to the two pods in turn gives the same alarms as a single instance.
+
+Liveness and readiness are separate on purpose. When Redis goes away the pods stop being ready and leave the Service, but they are not restarted, because restarting them would not bring Redis back.
+
+Redis runs without persistence. After it restarts the detectors start cold, which costs a couple of readings per sensor. While it is down, readings are rejected rather than scored without history.
 
 ## Roadmap
 
@@ -95,7 +103,7 @@ It runs a single replica on purpose: the detector state is in memory.
 - [x] detect faults sooner: defrost-aware detector
 - [x] learned model on window features, compared against the rules
 - [x] HTTP service, container image, CI
-- [x] Kubernetes deployment (single replica)
-- [ ] shared state, so it can run more than one replica
+- [x] Kubernetes deployment, two replicas with shared state in Redis
+- [ ] autoscaling and a Helm chart
 - [ ] experiment tracking and model registry
 - [ ] monitoring and drift detection
