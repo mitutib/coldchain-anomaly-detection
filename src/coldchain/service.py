@@ -4,7 +4,7 @@ import os
 
 import redis
 from fastapi import FastAPI, HTTPException, Response
-from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
 from coldchain.detectors import DefrostAwareDetector
@@ -28,6 +28,20 @@ def create_app(offset: float = 1.0, n: int = 2, store=None) -> FastAPI:
     registry = CollectorRegistry()
     readings = Counter("coldchain_readings", "Readings received", registry=registry)
     alarms = Counter("coldchain_alarms", "Readings that raised an alarm", registry=registry)
+    store_errors = Counter("coldchain_store_errors", "Readings refused because the store was down", registry=registry)
+    # degrees above the setpoint: the shape of this histogram is what the thresholds were tuned on
+    offsets = Histogram(
+        "coldchain_reading_offset_degrees",
+        "Reading minus setpoint",
+        buckets=(-2, -1, -0.5, 0, 0.5, 1, 1.5, 2, 3, 4, 6, 8, 12),
+        registry=registry,
+    )
+    seconds = Histogram(
+        "coldchain_request_seconds",
+        "Time to score one reading",
+        buckets=(0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1),
+        registry=registry,
+    )
 
     @app.get("/health")
     def health() -> dict:
@@ -49,10 +63,13 @@ def create_app(offset: float = 1.0, n: int = 2, store=None) -> FastAPI:
             return detector.state(), alarm
 
         try:
-            alarm = store.update(reading.sensor, step)
+            with seconds.time():
+                alarm = store.update(reading.sensor, step)
         except StoreUnavailable as error:
+            store_errors.inc()
             raise HTTPException(status_code=503, detail="state store unavailable") from error
         readings.inc()
+        offsets.observe(reading.temperature - reading.setpoint)
         if alarm:
             alarms.inc()
         return Verdict(sensor=reading.sensor, alarm=alarm)

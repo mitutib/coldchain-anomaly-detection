@@ -81,3 +81,31 @@ def test_reading_is_refused_when_the_store_is_down():
     store = RedisStore(redis.Redis(port=1, socket_connect_timeout=0.2))
     response = send(TestClient(create_app(store=store)), 5.0)
     assert response.status_code == 503
+
+
+def metric(client, name):
+    for line in client.get("/metrics").text.splitlines():
+        if line.split(" ")[0] == name:
+            return float(line.split(" ")[1])
+    raise AssertionError(f"{name} not found")
+
+
+def test_metrics_record_the_offset_from_the_setpoint(client):
+    for t in (4.2, 4.4, 9.0):
+        send(client, t, setpoint=4.0)
+    text = client.get("/metrics").text
+    assert 'coldchain_reading_offset_degrees_bucket{le="1.0"} 2.0' in text
+    assert 'coldchain_reading_offset_degrees_bucket{le="+Inf"} 3.0' in text
+
+
+def test_metrics_time_each_request(client):
+    send(client, 4.0)
+    assert metric(client, "coldchain_request_seconds_count") == 1.0
+
+
+def test_metrics_count_store_errors():
+    store = RedisStore(redis.Redis(port=1, socket_connect_timeout=0.2))
+    client = TestClient(create_app(store=store))
+    send(client, 5.0)
+    assert metric(client, "coldchain_store_errors_total") == 1.0
+    assert metric(client, "coldchain_readings_total") == 0.0
