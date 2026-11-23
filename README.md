@@ -78,24 +78,24 @@ Detector state is kept in memory by default. With `COLDCHAIN_REDIS_URL` set it g
 
 ## Kubernetes
 
-Manifests are in `deploy/k8s`. To run them on a local [kind](https://kind.sigs.k8s.io/) cluster:
+The Helm chart is in `deploy/helm/coldchain`. To run it on a local [kind](https://kind.sigs.k8s.io/) cluster:
 
 ```bash
 kind create cluster --name coldchain
-docker build -t coldchain:0.2.0 .
-kind load docker-image coldchain:0.2.0 --name coldchain
-kubectl apply -f deploy/k8s/
-kubectl -n coldchain rollout status deploy/coldchain
+docker build -t coldchain:0.3.0 .
+kind load docker-image coldchain:0.3.0 --name coldchain
+helm install coldchain deploy/helm/coldchain --namespace coldchain --create-namespace --wait
 kubectl -n coldchain port-forward svc/coldchain 8000:80
 ```
 
-The deployment rolls out with `maxUnavailable: 0`, so a bad release never takes the running pod down. Pointing it at an image that does not exist leaves the new pod in `ErrImagePull` while the old one keeps answering; `kubectl rollout undo` cleans up.
+What the chart sets up:
 
-It runs two replicas with the state in Redis. Sending one sensor's readings to the two pods in turn gives the same alarms as a single instance.
+- **Two or more replicas with state in Redis.** Sending one sensor's readings to the pods in turn gives the same alarms as a single instance.
+- **Rollouts that cannot take the service down.** With `maxUnavailable: 0`, an upgrade to an image that does not exist leaves the new pod in `ErrImagePull` while the old ones keep answering; `helm rollback` cleans up.
+- **Separate liveness and readiness.** When Redis goes away the pods stop being ready and leave the Service, but they are not restarted, because restarting them would not bring Redis back. `POST /readings` answers 503 meanwhile.
+- **Autoscaling** between two and five replicas at 60% of the requested CPU. Under a constant stream of requests it went from two replicas to five in under a minute, and back to two about two minutes after the load stopped.
 
-Liveness and readiness are separate on purpose. When Redis goes away the pods stop being ready and leave the Service, but they are not restarted, because restarting them would not bring Redis back.
-
-An autoscaler keeps between two and five replicas, aiming at 60% of the requested CPU. It needs metrics-server, which kind does not ship:
+Autoscaling needs metrics-server, which kind does not ship:
 
 ```bash
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
@@ -103,9 +103,7 @@ kubectl -n kube-system patch deploy metrics-server --type=json \
   -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
 ```
 
-Under a constant stream of requests it went from two replicas to five in under a minute, and back to two about two minutes after the load stopped. The deployment no longer sets `replicas`, so applying it again does not fight the autoscaler.
-
-Redis runs without persistence. After it restarts the detectors start cold, which costs a couple of readings per sensor. While it is down, `POST /readings` answers 503 rather than scoring a reading without history.
+The bundled Redis runs without persistence, so after it restarts the detectors start cold, which costs a couple of readings per sensor. To use a Redis you already run, set `redis.enabled=false` and `redis.externalUrl`.
 
 ## Roadmap
 
@@ -115,6 +113,6 @@ Redis runs without persistence. After it restarts the detectors start cold, whic
 - [x] HTTP service, container image, CI
 - [x] Kubernetes deployment, two replicas with shared state in Redis
 - [x] autoscaling
-- [ ] Helm chart
+- [x] Helm chart
 - [ ] experiment tracking and model registry
 - [ ] monitoring and drift detection

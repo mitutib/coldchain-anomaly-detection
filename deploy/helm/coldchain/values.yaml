@@ -1,0 +1,32 @@
+image:
+  repository: coldchain
+  tag: ""          # defaults to the chart's appVersion
+  pullPolicy: IfNotPresent
+
+detector:
+  offset: 1.0
+  consecutiveReadings: 2
+
+replicaCount: 2    # used only when autoscaling is off
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilization: 60
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 500m
+    memory: 192Mi
+
+service:
+  port: 80
+
+redis:
+  enabled: true    # set to false and fill in externalUrl to use a Redis you already run
+  image: redis:7-alpine
+  externalUrl: ""

@@ -1,12 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: coldchain
-  namespace: coldchain
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "coldchain.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
-      app: coldchain
+      {{- include "coldchain.labels" . | nindent 6 }}
+      app.kubernetes.io/component: api
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -15,22 +20,23 @@ spec:
   template:
     metadata:
       labels:
-        app: coldchain
+        {{- include "coldchain.labels" . | nindent 8 }}
+        app.kubernetes.io/component: api
     spec:
       containers:
         - name: coldchain
-          image: coldchain:0.2.0
-          imagePullPolicy: IfNotPresent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 8000
           env:
             - name: COLDCHAIN_OFFSET
-              value: "1.0"
+              value: {{ .Values.detector.offset | quote }}
             - name: COLDCHAIN_N
-              value: "2"
+              value: {{ .Values.detector.consecutiveReadings | quote }}
             - name: COLDCHAIN_REDIS_URL
-              value: redis://redis:6379/0
+              value: {{ include "coldchain.redisUrl" . | quote }}
           readinessProbe:
             httpGet:
               path: /ready
@@ -43,12 +49,7 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 15
           resources:
-            requests:
-              cpu: 50m
-              memory: 96Mi
-            limits:
-              cpu: 500m
-              memory: 192Mi
+            {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001

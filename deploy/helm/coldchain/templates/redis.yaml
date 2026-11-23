@@ -1,22 +1,25 @@
+{{- if .Values.redis.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: redis
-  namespace: coldchain
+  name: {{ .Release.Name }}-redis
+  labels:
+    {{- include "coldchain.labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: redis
+      {{- include "coldchain.labels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
   template:
     metadata:
       labels:
-        app: redis
+        {{- include "coldchain.labels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
     spec:
       containers:
         - name: redis
-          image: redis:7-alpine
-          # no persistence: after a Redis restart the detectors start cold, which costs a few readings
+          image: {{ .Values.redis.image }}
           args: ["--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
           ports:
             - name: redis
@@ -43,12 +46,15 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: redis
-  namespace: coldchain
+  name: {{ .Release.Name }}-redis
+  labels:
+    {{- include "coldchain.labels" . | nindent 4 }}
 spec:
   selector:
-    app: redis
+    {{- include "coldchain.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
   ports:
     - name: redis
       port: 6379
       targetPort: redis
+{{- end }}
