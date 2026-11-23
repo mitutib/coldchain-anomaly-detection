@@ -49,6 +49,17 @@ Known limits:
 - The test period holds 13 faults, so small differences between detectors are noise.
 - The data is synthetic, so real sensors will be noisier than this.
 
+## Experiment tracking
+
+`python -m coldchain.track` runs the same evaluation and records it in MLflow: one run per detector with its tuned parameters and its metrics, tagged with the hash of the data file so two runs can be compared knowing they saw the same readings. The gradient boosting model is stored with its run and registered as `coldchain-fault-model`.
+
+```bash
+python -m coldchain.track                           # writes to sqlite:///mlflow.db
+mlflow ui --backend-store-uri sqlite:///mlflow.db   # http://localhost:5000
+```
+
+The service still runs the defrost-aware rule. The registered model is there so the comparison can be repeated when real data arrives, not because it is in use.
+
 ## Service
 
 The defrost-aware detector runs as a small HTTP service. It keeps one detector per sensor and answers each reading with a verdict.
@@ -114,5 +125,5 @@ The bundled Redis runs without persistence, so after it restarts the detectors s
 - [x] Kubernetes deployment, two replicas with shared state in Redis
 - [x] autoscaling
 - [x] Helm chart
-- [ ] experiment tracking and model registry
+- [x] experiment tracking and model registry
 - [ ] monitoring and drift detection

@@ -8,7 +8,8 @@ dependencies = []
 [project.optional-dependencies]
 model = ["numpy", "scikit-learn"]
 service = ["fastapi", "uvicorn", "prometheus-client", "redis<8.2"]
-dev = ["coldchain[model,service]", "pytest", "httpx", "fakeredis", "ruff"]
+tracking = ["mlflow"]
+dev = ["coldchain[model,service,tracking]", "pytest", "httpx", "fakeredis", "ruff"]
 
 [tool.ruff]
 line-length = 120
