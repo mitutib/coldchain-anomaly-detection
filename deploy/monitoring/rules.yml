@@ -1,0 +1,47 @@
+groups:
+  - name: coldchain
+    rules:
+      - alert: ColdchainDown
+        expr: sum(up{job="coldchain"}) == 0 or absent(up{job="coldchain"})
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: No coldchain replica is answering scrapes
+
+      - alert: ColdchainStoreErrors
+        expr: sum(rate(coldchain_store_errors_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Readings are being refused because Redis is unreachable
+
+      - alert: ColdchainNoReadings
+        expr: sum(rate(coldchain_readings_total[10m])) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: No sensor has sent a reading for 15 minutes
+
+      - alert: ColdchainSlow
+        expr: histogram_quantile(0.95, sum by (le) (rate(coldchain_request_seconds_bucket[5m]))) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 95% of readings take more than 100 ms to score
+
+      # Tuning saw about 2 alarm starts per 1000 readings. Noisier sensors push that up long
+      # before the input distribution looks different, so this is the drift signal.
+      - alert: ColdchainAlarmRateDrift
+        expr: |
+          1000 * sum(increase(coldchain_alarm_starts_total[6h]))
+            / sum(increase(coldchain_readings_total[6h])) > 4
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Alarms are starting {{ $value | printf "%.1f" }} times per 1000 readings, twice the tuned rate'
+          description: Check sensor noise and defrost behaviour, then re-tune the thresholds on recent data.

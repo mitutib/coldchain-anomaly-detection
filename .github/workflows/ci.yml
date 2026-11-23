@@ -18,6 +18,10 @@ jobs:
       - run: ruff check .
       - run: pytest -q
       - run: helm lint deploy/helm/coldchain
+      - name: Alert rule tests
+        run: |
+          docker run --rm -v "$PWD/deploy/monitoring:/m:ro" --entrypoint promtool \
+            prom/prometheus:latest test rules /m/rules_test.yml
 
   image:
     runs-on: ubuntu-latest

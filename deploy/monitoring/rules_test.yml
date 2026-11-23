@@ -1,0 +1,88 @@
+rule_files:
+  - rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: tuned alarm rate does not fire
+    interval: 5m
+    input_series:
+      # 8 readings and 0.016 alarm starts every 5 minutes: 2 per 1000
+      - series: 'coldchain_readings_total{job="coldchain"}'
+        values: '0+8x120'
+      - series: 'coldchain_alarm_starts_total{job="coldchain"}'
+        values: '0+0.016x120'
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: ColdchainAlarmRateDrift
+        exp_alerts: []
+
+  - name: doubled alarm rate fires after it has lasted
+    interval: 5m
+    input_series:
+      # 6 alarm starts per 1000 readings
+      - series: 'coldchain_readings_total{job="coldchain"}'
+        values: '0+8x120'
+      - series: 'coldchain_alarm_starts_total{job="coldchain"}'
+        values: '0+0.048x120'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ColdchainAlarmRateDrift
+        exp_alerts: []
+      - eval_time: 8h
+        alertname: ColdchainAlarmRateDrift
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Alarms are starting 6.0 times per 1000 readings, twice the tuned rate
+              description: Check sensor noise and defrost behaviour, then re-tune the thresholds on recent data.
+
+  - name: store errors fire, a healthy store does not
+    interval: 1m
+    input_series:
+      - series: 'coldchain_store_errors_total{job="coldchain", instance="a"}'
+        values: '0+0x10 1+1x10'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ColdchainStoreErrors
+        exp_alerts: []
+      - eval_time: 18m
+        alertname: ColdchainStoreErrors
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Readings are being refused because Redis is unreachable
+
+  - name: missing target fires down
+    interval: 1m
+    input_series:
+      - series: 'coldchain_readings_total{job="other"}'
+        values: '0+1x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ColdchainDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: coldchain
+            exp_annotations:
+              summary: No coldchain replica is answering scrapes
+
+  - name: silent sensors fire after fifteen minutes
+    interval: 1m
+    input_series:
+      - series: 'coldchain_readings_total{job="coldchain"}'
+        values: '0+5x10 50+0x40'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ColdchainNoReadings
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: ColdchainNoReadings
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: No sensor has sent a reading for 15 minutes
