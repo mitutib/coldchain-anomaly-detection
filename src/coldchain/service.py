@@ -28,6 +28,7 @@ def create_app(offset: float = 1.0, n: int = 2, store=None) -> FastAPI:
     registry = CollectorRegistry()
     readings = Counter("coldchain_readings", "Readings received", registry=registry)
     alarms = Counter("coldchain_alarms", "Readings that raised an alarm", registry=registry)
+    alarm_starts = Counter("coldchain_alarm_starts", "Alarms that began on this reading", registry=registry)
     store_errors = Counter("coldchain_store_errors", "Readings refused because the store was down", registry=registry)
     # degrees above the setpoint: the shape of this histogram is what the thresholds were tuned on
     offsets = Histogram(
@@ -55,16 +56,17 @@ def create_app(offset: float = 1.0, n: int = 2, store=None) -> FastAPI:
 
     @app.post("/readings")
     def add_reading(reading: Reading) -> Verdict:
-        def step(state: dict | None) -> tuple[dict, bool]:
+        def step(state: dict | None) -> tuple[dict, tuple[bool, bool]]:
             detector = DefrostAwareDetector(reading.setpoint + offset, n)
             if state:
                 detector.restore(state)
+            was_alarming = detector.alarming
             alarm = detector.update(reading.temperature)
-            return detector.state(), alarm
+            return detector.state(), (alarm, alarm and not was_alarming)
 
         try:
             with seconds.time():
-                alarm = store.update(reading.sensor, step)
+                alarm, started = store.update(reading.sensor, step)
         except StoreUnavailable as error:
             store_errors.inc()
             raise HTTPException(status_code=503, detail="state store unavailable") from error
@@ -72,6 +74,8 @@ def create_app(offset: float = 1.0, n: int = 2, store=None) -> FastAPI:
         offsets.observe(reading.temperature - reading.setpoint)
         if alarm:
             alarms.inc()
+        if started:
+            alarm_starts.inc()
         return Verdict(sensor=reading.sensor, alarm=alarm)
 
     @app.get("/metrics")

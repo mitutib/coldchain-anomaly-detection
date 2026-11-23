@@ -87,6 +87,34 @@ Detector state is kept in memory by default. With `COLDCHAIN_REDIS_URL` set it g
 |---|---|
 | `GET /ready` | readiness check: fails while Redis is unreachable |
 
+## Monitoring and drift
+
+The thresholds were tuned on one kind of data. If the sensors change, the detector keeps running and quietly gets worse, so the service exports what is needed to notice:
+
+| Metric | What it tells you |
+|---|---|
+| `coldchain_readings_total`, `coldchain_alarms_total` | volume, and the share of readings in alarm |
+| `coldchain_alarm_starts_total` | how many separate alarms began |
+| `coldchain_reading_offset_degrees` | histogram of reading minus setpoint: the input distribution |
+| `coldchain_request_seconds` | time to score a reading, Redis round trip included |
+| `coldchain_store_errors_total` | readings refused because Redis was down |
+
+To see what drift does, the tuned detector was run on 28 days of data from sensors with more noise than it was tuned on. `python -m coldchain.drift reference.csv current.csv` gives the population stability index (PSI) of the input distribution.
+
+| Sensor noise | PSI | Faults caught | False alarms | Alarm starts per day |
+|---|---|---|---|---|
+| as tuned | 0.00 | 30 / 30 | 34 | 2.4 |
+| 1.5 times | 0.07 | 30 / 30 | 156 | 6.7 |
+| 2 times | 0.22 | 30 / 30 | 314 | 12.4 |
+| 3 times | 0.58 | 28 / 30 | 519 | 19.9 |
+
+Two things stand out:
+
+- **PSI is too slow here.** At 1.5 times the noise it reads 0.07, under the usual 0.1 "stable" line, while false alarms have already grown more than four times. Watching the input distribution alone would have missed it.
+- **The detector's own output is the better signal.** Alarm starts per day nearly triple at the first step. That is why the service counts alarm starts separately from alarming readings: the count of readings in alarm moves much less, because a real fault holds many readings and a false alarm only a few.
+
+So the alert to set is on alarm starts per sensor per day against the rate seen during tuning, with PSI kept as supporting evidence when it fires.
+
 ## Kubernetes
 
 The Helm chart is in `deploy/helm/coldchain`. To run it on a local [kind](https://kind.sigs.k8s.io/) cluster:
@@ -126,4 +154,5 @@ The bundled Redis runs without persistence, so after it restarts the detectors s
 - [x] autoscaling
 - [x] Helm chart
 - [x] experiment tracking and model registry
-- [ ] monitoring and drift detection
+- [x] drift measured, metrics exported
+- [ ] Prometheus rules and a dashboard

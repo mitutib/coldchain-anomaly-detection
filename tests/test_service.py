@@ -109,3 +109,11 @@ def test_metrics_count_store_errors():
     send(client, 5.0)
     assert metric(client, "coldchain_store_errors_total") == 1.0
     assert metric(client, "coldchain_readings_total") == 0.0
+
+
+def test_metrics_count_alarm_starts_not_alarming_readings(client):
+    # two separate episodes: three alarming readings in the first, two in the second
+    for t in (4.0, 5.5, 5.5, 5.5, 5.5, 4.0, 5.5, 5.5, 5.5):
+        send(client, t)
+    assert metric(client, "coldchain_alarms_total") == 5.0
+    assert metric(client, "coldchain_alarm_starts_total") == 2.0
