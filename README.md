@@ -113,7 +113,38 @@ Two things stand out:
 - **PSI is too slow here.** At 1.5 times the noise it reads 0.07, under the usual 0.1 "stable" line, while false alarms have already grown more than four times. Watching the input distribution alone would have missed it.
 - **The detector's own output is the better signal.** Alarm starts per day nearly triple at the first step. That is why the service counts alarm starts separately from alarming readings: the count of readings in alarm moves much less, because a real fault holds many readings and a false alarm only a few.
 
-So the alert to set is on alarm starts per sensor per day against the rate seen during tuning, with PSI kept as supporting evidence when it fires.
+So the alert is on alarm starts per 1000 readings, against the rate seen during tuning, with PSI kept as supporting evidence when it fires.
+
+### Alerts and dashboard
+
+`deploy/monitoring` holds the Prometheus rules, their unit tests, and a Grafana dashboard.
+
+| Alert | Fires when |
+|---|---|
+| `ColdchainDown` | no replica answers scrapes for 2 minutes |
+| `ColdchainStoreErrors` | readings are being refused because Redis is unreachable |
+| `ColdchainNoReadings` | no sensor has sent anything for 15 minutes |
+| `ColdchainSlow` | 95% of readings take more than 100 ms to score |
+| `ColdchainAlarmRateDrift` | alarms start more than 4 times per 1000 readings for 30 minutes, twice the tuned rate |
+
+The rules are tested with `promtool test rules`, in CI too, so a threshold change that stops an alert from firing fails the build.
+
+To try it on the local cluster:
+
+```bash
+kubectl -n coldchain create configmap prometheus-config \
+  --from-file=deploy/monitoring/prometheus.yml --from-file=deploy/monitoring/rules.yml
+kubectl apply -f deploy/monitoring/prometheus-kind.yaml
+kubectl -n coldchain port-forward svc/coldchain 8000:80 &
+
+python -m coldchain.replay --days 7 --prefix normal-
+python -m coldchain.replay --days 7 --prefix noisy- --noise-scale 2.0
+```
+
+Replaying a week of readings gave 2.4 alarm starts per 1000 readings; the same week from sensors with twice the noise gave 11.4, and the drift alert went pending.
+
+`dashboard.json` imports into Grafana as is and asks for a Prometheus data source. It shows volume, the alarm start rate against its threshold, scoring time, and the input distribution as a heatmap.
+
 
 ## Kubernetes
 
@@ -121,8 +152,8 @@ The Helm chart is in `deploy/helm/coldchain`. To run it on a local [kind](https:
 
 ```bash
 kind create cluster --name coldchain
-docker build -t coldchain:0.3.0 .
-kind load docker-image coldchain:0.3.0 --name coldchain
+docker build -t coldchain:0.4.0 .
+kind load docker-image coldchain:0.4.0 --name coldchain
 helm install coldchain deploy/helm/coldchain --namespace coldchain --create-namespace --wait
 kubectl -n coldchain port-forward svc/coldchain 8000:80
 ```
@@ -154,5 +185,5 @@ The bundled Redis runs without persistence, so after it restarts the detectors s
 - [x] autoscaling
 - [x] Helm chart
 - [x] experiment tracking and model registry
-- [x] drift measured, metrics exported
-- [ ] Prometheus rules and a dashboard
+- [x] monitoring: metrics, drift measure, alert rules with tests, dashboard
+- [ ] the same platform on a cloud provider, from Terraform

@@ -3,4 +3,4 @@ name: coldchain
 description: Anomaly detection service for refrigeration temperature sensors
 type: application
 version: 0.1.0
-appVersion: "0.3.0"
+appVersion: "0.4.0"
