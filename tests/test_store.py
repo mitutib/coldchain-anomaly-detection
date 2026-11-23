@@ -1,7 +1,8 @@
 import fakeredis
 import pytest
+import redis
 
-from coldchain.store import MemoryStore, RedisStore
+from coldchain.store import MemoryStore, RedisStore, StoreUnavailable
 
 
 @pytest.fixture(params=["memory", "redis"])
@@ -40,3 +41,9 @@ def test_two_redis_stores_share_state():
 
 def test_ping(store):
     assert store.ping() is True
+
+
+def test_unreachable_redis_raises_store_unavailable():
+    store = RedisStore(redis.Redis(port=1, socket_connect_timeout=0.2))
+    with pytest.raises(StoreUnavailable):
+        store.update("dairy", count)

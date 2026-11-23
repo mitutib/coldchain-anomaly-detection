@@ -9,6 +9,10 @@ import redis
 Step = Callable[[dict | None], tuple[dict, Any]]
 
 
+class StoreUnavailable(Exception):
+    pass
+
+
 class MemoryStore:
     def __init__(self) -> None:
         self.states: dict[str, dict] = {}
@@ -41,6 +45,8 @@ class RedisStore:
                     return result
                 except redis.WatchError:
                     continue
+                except redis.RedisError as error:
+                    raise StoreUnavailable(str(error)) from error
 
     def ping(self) -> bool:
         try:

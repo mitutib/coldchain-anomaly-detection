@@ -105,7 +105,7 @@ kubectl -n kube-system patch deploy metrics-server --type=json \
 
 Under a constant stream of requests it went from two replicas to five in under a minute, and back to two about two minutes after the load stopped. The deployment no longer sets `replicas`, so applying it again does not fight the autoscaler.
 
-Redis runs without persistence. After it restarts the detectors start cold, which costs a couple of readings per sensor. While it is down, readings are rejected rather than scored without history.
+Redis runs without persistence. After it restarts the detectors start cold, which costs a couple of readings per sensor. While it is down, `POST /readings` answers 503 rather than scoring a reading without history.
 
 ## Roadmap
 

@@ -3,12 +3,12 @@ from __future__ import annotations
 import os
 
 import redis
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, HTTPException, Response
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, generate_latest
 from pydantic import BaseModel, Field
 
 from coldchain.detectors import DefrostAwareDetector
-from coldchain.store import MemoryStore, RedisStore
+from coldchain.store import MemoryStore, RedisStore, StoreUnavailable
 
 
 class Reading(BaseModel):
@@ -48,7 +48,10 @@ def create_app(offset: float = 1.0, n: int = 2, store=None) -> FastAPI:
             alarm = detector.update(reading.temperature)
             return detector.state(), alarm
 
-        alarm = store.update(reading.sensor, step)
+        try:
+            alarm = store.update(reading.sensor, step)
+        except StoreUnavailable as error:
+            raise HTTPException(status_code=503, detail="state store unavailable") from error
         readings.inc()
         if alarm:
             alarms.inc()

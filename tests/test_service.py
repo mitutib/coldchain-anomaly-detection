@@ -1,5 +1,6 @@
 import fakeredis
 import pytest
+import redis
 from fastapi.testclient import TestClient
 
 from coldchain.service import create_app
@@ -74,3 +75,9 @@ def test_not_ready_when_the_store_is_down():
             return False
 
     assert TestClient(create_app(store=Down())).get("/ready").status_code == 503
+
+
+def test_reading_is_refused_when_the_store_is_down():
+    store = RedisStore(redis.Redis(port=1, socket_connect_timeout=0.2))
+    response = send(TestClient(create_app(store=store)), 5.0)
+    assert response.status_code == 503
