@@ -72,12 +72,30 @@ The threshold and the number of consecutive readings come from `COLDCHAIN_OFFSET
 
 Detector state lives in memory, so it is lost on restart and not shared between replicas. That is fine for one instance and has to change before scaling out.
 
+## Kubernetes
+
+Manifests are in `deploy/k8s`. To run them on a local [kind](https://kind.sigs.k8s.io/) cluster:
+
+```bash
+kind create cluster --name coldchain
+docker build -t coldchain:0.1.0 .
+kind load docker-image coldchain:0.1.0 --name coldchain
+kubectl apply -f deploy/k8s/
+kubectl -n coldchain rollout status deploy/coldchain
+kubectl -n coldchain port-forward svc/coldchain 8000:80
+```
+
+The deployment rolls out with `maxUnavailable: 0`, so a bad release never takes the running pod down. Pointing it at an image that does not exist leaves the new pod in `ErrImagePull` while the old one keeps answering; `kubectl rollout undo` cleans up.
+
+It runs a single replica on purpose: the detector state is in memory.
+
 ## Roadmap
 
 - [x] baseline detectors, evaluated on a time-based split
 - [x] detect faults sooner: defrost-aware detector
 - [x] learned model on window features, compared against the rules
 - [x] HTTP service, container image, CI
-- [ ] Kubernetes deployment
+- [x] Kubernetes deployment (single replica)
+- [ ] shared state, so it can run more than one replica
 - [ ] experiment tracking and model registry
 - [ ] monitoring and drift detection
