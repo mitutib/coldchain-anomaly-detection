@@ -23,6 +23,20 @@ jobs:
           docker run --rm -v "$PWD/deploy/monitoring:/m:ro" --entrypoint promtool \
             prom/prometheus:latest test rules /m/rules_test.yml
 
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/terraform/local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false
+      - run: terraform validate
+
   image:
     runs-on: ubuntu-latest
     needs: test
