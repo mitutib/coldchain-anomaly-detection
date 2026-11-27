@@ -7,11 +7,11 @@ tests:
   - name: tuned alarm rate does not fire
     interval: 5m
     input_series:
-      # 8 readings and 0.016 alarm starts every 5 minutes: 2 per 1000
+      # 40 readings and 0.08 alarm starts every 5 minutes: 2880 readings in 6 hours, 2 per 1000
       - series: 'coldchain_readings_total{job="coldchain"}'
-        values: '0+8x120'
+        values: '0+40x120'
       - series: 'coldchain_alarm_starts_total{job="coldchain"}'
-        values: '0+0.016x120'
+        values: '0+0.08x120'
     alert_rule_test:
       - eval_time: 8h
         alertname: ColdchainAlarmRateDrift
@@ -20,11 +20,11 @@ tests:
   - name: doubled alarm rate fires after it has lasted
     interval: 5m
     input_series:
-      # 6 alarm starts per 1000 readings
+      # 2880 readings in 6 hours, 6 alarm starts per 1000
       - series: 'coldchain_readings_total{job="coldchain"}'
-        values: '0+8x120'
+        values: '0+40x120'
       - series: 'coldchain_alarm_starts_total{job="coldchain"}'
-        values: '0+0.048x120'
+        values: '0+0.24x120'
     alert_rule_test:
       - eval_time: 10m
         alertname: ColdchainAlarmRateDrift
@@ -37,6 +37,19 @@ tests:
             exp_annotations:
               summary: Alarms are starting 6.0 times per 1000 readings, twice the tuned rate
               description: Check sensor noise and defrost behaviour, then re-tune the thresholds on recent data.
+
+  - name: high alarm rate on too few readings does not fire
+    interval: 5m
+    input_series:
+      # 4 sensors: 288 readings and about 2 alarm starts in 6 hours, 7 per 1000
+      - series: 'coldchain_readings_total{job="coldchain"}'
+        values: '0+4x120'
+      - series: 'coldchain_alarm_starts_total{job="coldchain"}'
+        values: '0+0.028x120'
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: ColdchainAlarmRateDrift
+        exp_alerts: []
 
   - name: store errors fire, a healthy store does not
     interval: 1m
@@ -73,13 +86,14 @@ tests:
   - name: silent sensors fire after fifteen minutes
     interval: 1m
     input_series:
+      # last reading at 10m: the 5m window is flat from 14m and the alert fires at 24m
       - series: 'coldchain_readings_total{job="coldchain"}'
         values: '0+5x10 50+0x40'
     alert_rule_test:
-      - eval_time: 15m
+      - eval_time: 22m
         alertname: ColdchainNoReadings
         exp_alerts: []
-      - eval_time: 45m
+      - eval_time: 27m
         alertname: ColdchainNoReadings
         exp_alerts:
           - exp_labels:

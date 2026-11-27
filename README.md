@@ -125,7 +125,9 @@ So the alert is on alarm starts per 1000 readings, against the rate seen during 
 | `ColdchainStoreErrors` | readings are being refused because Redis is unreachable |
 | `ColdchainNoReadings` | no sensor has sent anything for 15 minutes |
 | `ColdchainSlow` | 95% of readings take more than 100 ms to score |
-| `ColdchainAlarmRateDrift` | alarms start more than 4 times per 1000 readings for 30 minutes, twice the tuned rate |
+| `ColdchainAlarmRateDrift` | alarms start more than 4 times per 1000 readings for 30 minutes, twice the tuned rate, over at least 2000 readings in the last 6 hours |
+
+The drift alert needs that minimum volume because on fewer readings a couple of alarms are enough to double the rate. The four demo sensors send 288 readings in 6 hours, so it stays silent for them in real time and only a replay reaches it.
 
 The rules are tested with `promtool test rules`, in CI too, so a threshold change that stops an alert from firing fails the build.
 

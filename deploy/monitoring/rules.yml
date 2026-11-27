@@ -18,8 +18,9 @@ groups:
           summary: Readings are being refused because Redis is unreachable
 
       - alert: ColdchainNoReadings
-        expr: sum(rate(coldchain_readings_total[10m])) == 0
-        for: 15m
+        # The 5m window goes flat about 5 minutes after the last reading; for: 10m makes it 15.
+        expr: sum(rate(coldchain_readings_total[5m])) == 0
+        for: 10m
         labels:
           severity: warning
         annotations:
@@ -35,10 +36,13 @@ groups:
 
       # Tuning saw about 2 alarm starts per 1000 readings. Noisier sensors push that up long
       # before the input distribution looks different, so this is the drift signal.
+      # Under 2000 readings the tuned rate predicts fewer than 4 starts, so two or three extra
+      # ones double it by chance. At 2000 the alert needs 9 starts where 4 are expected.
       - alert: ColdchainAlarmRateDrift
         expr: |
           1000 * sum(increase(coldchain_alarm_starts_total[6h]))
             / sum(increase(coldchain_readings_total[6h])) > 4
+          and sum(increase(coldchain_readings_total[6h])) >= 2000
         for: 30m
         labels:
           severity: warning
